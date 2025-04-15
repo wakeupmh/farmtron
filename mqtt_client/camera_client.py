@@ -2,6 +2,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 from io import BytesIO
 from PIL import Image
+from urllib.parse import urlparse
 
 class IPCameraClient:
     """
@@ -20,6 +21,10 @@ class IPCameraClient:
         img_bytes = camera.get_snapshot_bytes()
     """
     def __init__(self, url, username=None, password=None, timeout=5):
+        # Validate URL
+        parsed = urlparse(url)
+        if not parsed.scheme.startswith('http'):
+            raise ValueError('Camera URL must start with http or https')
         self.url = url
         self.username = username
         self.password = password
@@ -30,14 +35,14 @@ class IPCameraClient:
         auth = None
         if self.username and self.password:
             auth = HTTPBasicAuth(self.username, self.password)
-        resp = requests.get(self.url, auth=auth, timeout=self.timeout)
+        resp = requests.get(self.url, auth=auth, timeout=self.timeout, stream=True)
         resp.raise_for_status()
         return resp.content
 
     def get_snapshot(self):
         """Fetch the latest snapshot as a PIL Image."""
         img_bytes = self.get_snapshot_bytes()
-        return Image.open(BytesIO(img_bytes))
+        return Image.open(BytesIO(img_bytes)).convert('RGB')
 
     # Optionally, you could add MJPEG streaming support here
     # def stream_mjpeg(self):

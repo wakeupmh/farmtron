@@ -235,3 +235,62 @@ This project is based on the article:
 ## 📝 License
 
 This project is under the MIT license.
+
+## MQTT Reliability & Email Alerting
+
+### MQTT Reconnection Logic
+- The dashboard automatically attempts to reconnect to the MQTT broker if the connection is lost.
+- All connection attempts, errors, and received MQTT messages are logged persistently to `dashboard.log` (or as set by the `DASHBOARD_LOG_FILE` environment variable).
+
+### Persistent Logging
+- Log file: `dashboard.log` (default, configurable via env).
+- Logs include timestamps, log levels, connection events, errors, and MQTT messages.
+
+### Email Alerts for Repeated Failures
+- If the dashboard fails to connect to the MQTT broker repeatedly (default: 3 times), an alert email is sent to a configured address.
+- Only one alert is sent per failure streak; after a successful connection, the counter resets.
+- All email configuration is handled via environment variables for security and flexibility.
+
+#### Environment Variables for Email Alerts
+```
+ALERT_EMAIL_TO=recipient@example.com         # Recipient email address
+ALERT_EMAIL_FROM=dashboard@example.com       # Sender email address
+ALERT_EMAIL_HOST=smtp.example.com           # SMTP server host
+ALERT_EMAIL_PORT=587                        # SMTP server port (default 587)
+ALERT_EMAIL_USER=dashboard@example.com       # SMTP username
+ALERT_EMAIL_PASS=your_smtp_password         # SMTP password
+ALERT_FAILURE_THRESHOLD=3                   # (Optional) Number of failures before alert (default 3)
+```
+
+### How to Configure a Free SMTP Server or Cloud Email Service
+
+#### Gmail (Free for low volume, personal use)
+1. Enable "Less secure app access" or create an App Password (recommended) in your Google Account.
+2. Use the following settings:
+   - `ALERT_EMAIL_HOST=smtp.gmail.com`
+   - `ALERT_EMAIL_PORT=587`
+   - `ALERT_EMAIL_USER=your_gmail@gmail.com`
+   - `ALERT_EMAIL_PASS=your_app_password` (not your main account password)
+3. Note: For production or higher reliability, use a dedicated email provider or domain.
+
+#### Outlook/Hotmail (Free for personal use)
+- `ALERT_EMAIL_HOST=smtp.office365.com`
+- `ALERT_EMAIL_PORT=587`
+- `ALERT_EMAIL_USER=your_email@outlook.com`
+- `ALERT_EMAIL_PASS=your_password`
+
+#### SendGrid (Free tier, suitable for cloud apps)
+1. Sign up for a free SendGrid account: https://sendgrid.com/
+2. Create an API key and enable SMTP relay.
+3. Use the following settings:
+   - `ALERT_EMAIL_HOST=smtp.sendgrid.net`
+   - `ALERT_EMAIL_PORT=587`
+   - `ALERT_EMAIL_USER=apikey` (literally the word "apikey")
+   - `ALERT_EMAIL_PASS=your_sendgrid_api_key`
+
+#### General Tips
+- Always use app-specific passwords or API keys where possible.
+- Never share your SMTP credentials publicly.
+- For higher reliability, consider using a domain-based or transactional email provider.
+
+With these features, Farmtron is robust against MQTT outages and provides real-time alerts for system reliability.
