@@ -135,6 +135,98 @@ git clone https://github.com/yourusername/farmtron.git
    - Monitors pH and EC values
    - MQTT alert system
 
+## Project Overview
+
+Farmtron is an integrated system for hydroponics monitoring and automation, composed of:
+- Embedded firmware (ESP32) responsible for sensor readings, pump control, and MQTT communication.
+- A web dashboard (Python/Dash) for real-time data visualization, system status, and manual command sending.
+
+## Architecture
+
+- **Firmware (src/):**
+  - Reads temperature, humidity, pH, and EC sensors.
+  - Publishes periodic sensor readings via MQTT in JSON format.
+  - Receives remote commands (e.g., pump activation) via MQTT topics.
+  - Implements automatic irrigation logic, alert thresholds, and night mode.
+- **Client/Dashboard (mqtt_client/):**
+  - Receives and stores the latest readings and alerts.
+  - Displays real-time graphs and system status (Dash).
+  - Allows manual pump control through the web interface.
+
+## Folder Structure
+
+- `src/`
+  - `main.cpp`: Main firmware logic.
+  - `config.h`: System configurations (credentials, topics, thresholds, pins).
+  - `sensors.h`: Abstraction for sensor reading.
+- `mqtt_client/`
+  - `hydroponics_dashboard.py`: Web dashboard in Python.
+  - `requirements.txt`: Client dependencies.
+  - `.env.example`: Example of required environment variables.
+
+## How It Works
+
+1. The ESP32 connects to WiFi, sets up NTP, sensors, and MQTT.
+2. Periodically reads sensors and publishes data via MQTT.
+3. The Python dashboard receives the data, stores it, and updates graphs and status.
+4. Manual commands can be sent from the dashboard and reach the ESP32 via MQTT.
+5. The firmware executes automatic irrigation and alert logic according to defined thresholds.
+
+## Technologies Used
+- **Firmware:** Arduino (ESP32), PubSubClient (MQTT), ArduinoJson
+- **Dashboard:** Python, Dash, paho-mqtt, pandas, python-dotenv
+
+## Highlights
+- Modular and clearly separated firmware and client
+- Robust MQTT communication
+- Embedded automation with thresholds and night mode
+- User-friendly web interface for monitoring and control
+
+## Security: Best Practices for IP Camera Integration
+
+To ensure the safety and privacy of your hydroponics monitoring system, follow these security recommendations when integrating IP cameras:
+
+### Device-Level Security
+- **Change Default Credentials:** Set strong, unique passwords for all camera accounts. Never use factory defaults.
+- **Update Firmware:** Regularly update your camera’s firmware to patch vulnerabilities.
+- **Disable Unused Services:** Turn off unnecessary services (FTP, Telnet, UPnP, etc.).
+- **Limit User Accounts:** Use only the minimum accounts needed, with the lowest privilege necessary.
+
+### Network Security
+- **Network Segmentation:** Place cameras on a separate VLAN or subnet, isolated from your main network.
+- **Firewall Rules:** Restrict camera access to trusted devices only. Block unnecessary inbound/outbound connections.
+- **Avoid Port Forwarding:** Never expose camera ports directly to the internet. Use VPN or a secure reverse proxy if remote access is needed.
+- **Prefer Wired Connections:** Use Ethernet instead of Wi-Fi when possible.
+
+### Secure Communication
+- **Enable HTTPS:** Always use HTTPS for camera web interfaces and streams if available.
+- **Disable Insecure Protocols:** Turn off HTTP, Telnet, or other insecure protocols.
+
+### Application-Level Security
+- **Dashboard Authentication:** Protect your Streamlit/Dash dashboard with authentication so only authorized users can view camera feeds.
+- **Secure Credential Storage:** Store camera URLs, usernames, and passwords in environment variables or encrypted config files. Never hardcode credentials.
+- **Input Validation:** Validate and sanitize any user-supplied URLs or credentials in your app.
+
+### Monitoring & Logging
+- **Monitor Access Logs:** Regularly review logs for unauthorized access attempts.
+- **Set Up Alerts:** Configure alerts for repeated failed logins or suspicious activity.
+
+### Physical Security
+- **Restrict Physical Access:** Secure the camera and networking equipment to prevent tampering.
+
+### Summary Table
+
+| Area             | Recommendation                                      |
+|------------------|-----------------------------------------------------|
+| Device           | Change defaults, update firmware, strong passwords  |
+| Network          | VLAN, firewall, avoid port forwarding, wired if possible |
+| Communication    | Use HTTPS, disable insecure protocols               |
+| Application      | Dashboard auth, secure credential storage           |
+| Monitoring       | Log and alert on suspicious activity                |
+| Physical         | Secure installation location                        |
+
+Following these best practices will help keep your system secure and your camera feeds private.
+
 ## 📚 Reference
 
 This project is based on the article:
