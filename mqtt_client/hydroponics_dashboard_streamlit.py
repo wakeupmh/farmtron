@@ -9,8 +9,7 @@ from dotenv import load_dotenv
 from camera_client import IPCameraClient
 import json
 import logging
-import smtplib
-from email.mime.text import MIMEText
+import requests
 
 load_dotenv()
 
@@ -42,13 +41,9 @@ CAMERA_URL = os.getenv('CAMERA_URL')
 CAMERA_USER = os.getenv('CAMERA_USER')
 CAMERA_PASS = os.getenv('CAMERA_PASS')
 
-# Email Alert Config
-ALERT_EMAIL_TO = os.getenv('ALERT_EMAIL_TO')
-ALERT_EMAIL_FROM = os.getenv('ALERT_EMAIL_FROM')
-ALERT_EMAIL_HOST = os.getenv('ALERT_EMAIL_HOST')
-ALERT_EMAIL_PORT = int(os.getenv('ALERT_EMAIL_PORT', 587))
-ALERT_EMAIL_USER = os.getenv('ALERT_EMAIL_USER')
-ALERT_EMAIL_PASS = os.getenv('ALERT_EMAIL_PASS')
+# Telegram Alert Config
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 ALERT_FAILURE_THRESHOLD = int(os.getenv('ALERT_FAILURE_THRESHOLD', 3))
 
 # Data queues
@@ -75,27 +70,24 @@ def on_message(client, userdata, msg):
     elif topic == MQTT_TOPIC_ALERT:
         alert_queue.put(payload)
 
-# Email Alert Function
-def send_failure_alert_email(error_msg):
-    if not all([ALERT_EMAIL_TO, ALERT_EMAIL_FROM, ALERT_EMAIL_HOST, ALERT_EMAIL_USER, ALERT_EMAIL_PASS]):
-        logger.warning("Email alert config incomplete; cannot send alert email.")
+# Telegram Alert Function
+def send_failure_alert_telegram(error_msg):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.warning("Telegram alert config incomplete; cannot send alert.")
         return
-    subject = "Farmtron Dashboard ALERT: MQTT Connection Failures"
-    body = f"Repeated MQTT connection failures detected.\n\nLast error: {error_msg}\n\nPlease check your MQTT broker and dashboard."
-    msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = ALERT_EMAIL_FROM
-    msg['To'] = ALERT_EMAIL_TO
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    text = f"🚨 Farmtron ALERT: Repeated MQTT connection failures!\n\nLast error: {error_msg}"
+    data = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
     try:
-        with smtplib.SMTP(ALERT_EMAIL_HOST, ALERT_EMAIL_PORT, timeout=10) as server:
-            server.starttls()
-            server.login(ALERT_EMAIL_USER, ALERT_EMAIL_PASS)
-            server.sendmail(ALERT_EMAIL_FROM, [ALERT_EMAIL_TO], msg.as_string())
-        logger.info(f"Sent MQTT failure alert email to {ALERT_EMAIL_TO}")
+        resp = requests.post(url, data=data, timeout=10)
+        if resp.status_code == 200:
+            logger.info(f"Sent MQTT failure alert to Telegram chat {TELEGRAM_CHAT_ID}")
+        else:
+            logger.error(f"Failed to send Telegram alert: {resp.text}")
     except Exception as e:
-        logger.error(f"Failed to send alert email: {e}")
+        logger.error(f"Error sending Telegram alert: {e}")
 
-# MQTT client in background thread with reconnection logic and alerts
+# MQTT client in background thread with reconnection logic and Telegram alerts
 def mqtt_thread():
     client = mqtt.Client()
     if MQTT_USER and MQTT_PASSWORD:
@@ -115,7 +107,7 @@ def mqtt_thread():
             logger.error(f"MQTT connection error: {e}. Retrying in 5 seconds...")
             failure_count += 1
             if failure_count >= ALERT_FAILURE_THRESHOLD and not alert_sent:
-                send_failure_alert_email(str(e))
+                send_failure_alert_telegram(str(e))
                 alert_sent = True
             time.sleep(5)
 

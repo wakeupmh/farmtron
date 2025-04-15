@@ -294,3 +294,104 @@ ALERT_FAILURE_THRESHOLD=3                   # (Optional) Number of failures befo
 - For higher reliability, consider using a domain-based or transactional email provider.
 
 With these features, Farmtron is robust against MQTT outages and provides real-time alerts for system reliability.
+
+## 📦 Deploy & Consumo Remoto Seguro
+
+### Cenários de Deploy
+
+- **Embedded (dispositivos/sensores):** Pode ser instalado em uma casa, sítio ou ambiente remoto, conectado à internet local.
+- **Dashboard/Cliente MQTT:** Pode ser executado em outro local (ex: sua residência, escritório, nuvem ou até no celular via VPN).
+
+### Como Consumir Dados de Outro Local
+
+1. **Broker MQTT Local Exposto para Fora**
+   - **NÃO recomendado expor diretamente a porta do broker na internet!**
+   - Use autenticação forte, TLS e restrinja IPs caso precise expor.
+
+2. **VPN entre as Casas/Locais**
+   - Configure uma VPN (ex: WireGuard, Tailscale, OpenVPN, Zerotier) entre o local do embedded e o local do dashboard.
+   - O broker MQTT fica acessível apenas via VPN, como se todos estivessem na mesma rede.
+   - **Mais seguro e prático para acesso remoto!**
+
+3. **Broker MQTT em Nuvem**
+   - Use um serviço de MQTT cloud (ex: HiveMQ Cloud, Mosquitto Cloud, EMQX Cloud, AWS IoT Core).
+   - Embedded e dashboard se conectam ao broker na nuvem, com TLS e autenticação.
+   - Ideal para alta disponibilidade e acesso de múltiplos locais.
+
+### Usando AWS IoT Core como Broker MQTT (Cloud)
+
+O AWS IoT Core é uma solução robusta e segura de broker MQTT na nuvem, ideal para conectar dispositivos embarcados e dashboards em diferentes locais.
+
+**Vantagens:**
+- Alta disponibilidade e escalabilidade.
+- Comunicação criptografada (TLS).
+- Controle de acesso via certificados e policies.
+- Integração fácil com outros serviços AWS.
+
+**Como configurar:**
+1. **Crie um "Thing" no AWS IoT Core:**
+   - Acesse o console AWS > IoT Core > Manage > Things > Create.
+2. **Gere e baixe os certificados:**
+   - Durante a criação do Thing, gere certificados (device cert, private key, root CA) e faça download.
+3. **Crie uma Policy de permissão MQTT:**
+   - Exemplo: permitir connect/publish/subscribe nos tópicos desejados.
+4. **Anexe a Policy ao certificado do Thing.**
+5. **Pegue o endpoint MQTT do AWS IoT:**
+   - No console AWS IoT > Settings > Endpoint.
+6. **Configure os clientes MQTT (embedded e dashboard):**
+   - Use o endpoint como broker.
+   - Use porta 8883 (TLS).
+   - Configure o caminho dos certificados e chave privada.
+
+**Exemplo de variáveis de ambiente:**
+```
+MQTT_BROKER=xxxxxx-ats.iot.<region>.amazonaws.com
+MQTT_PORT=8883
+MQTT_CERT=/caminho/device-certificate.pem.crt
+MQTT_KEY=/caminho/private.pem.key
+MQTT_CA=/caminho/AmazonRootCA1.pem
+```
+
+**Clientes MQTT Python (paho-mqtt):**
+```python
+client.tls_set(ca_certs=MQTT_CA, certfile=MQTT_CERT, keyfile=MQTT_KEY)
+client.connect(MQTT_BROKER, MQTT_PORT, 60)
+```
+
+**No embedded (ex: ESP32/Arduino):**
+- Use bibliotecas MQTT que suportam TLS (ex: PubSubClient + BearSSL ou WiFiClientSecure).
+- Configure os caminhos dos certificados conforme documentação do SDK.
+
+**Observações:**
+- O AWS IoT Core possui plano gratuito com limites generosos para testes.
+- Após o free tier, há cobrança por mensagens e conexões.
+- Sempre proteja suas chaves e certificados!
+
+Mais detalhes: https://docs.aws.amazon.com/iot/latest/developerguide/iot-connect-devices.html
+
+### Práticas de Segurança Recomendadas
+
+- **Nunca exponha o broker MQTT na internet sem TLS e autenticação.**
+- Prefira usar VPN para conectar redes remotas.
+- Se usar broker em nuvem, ative TLS e use senhas fortes.
+- Restrinja o acesso do broker a IPs conhecidos quando possível.
+- Mantenha firewall ativo bloqueando portas não utilizadas.
+- Monitore os logs do broker e do dashboard para detectar acessos suspeitos.
+
+### Exemplo de Topologia Segura
+
+```
+[ Embedded ]---(LAN/WiFi)---[ Roteador Casa 1 ]---(VPN)---[ Internet ]---(VPN)---[ Roteador Casa 2 ]---[ Dashboard/Cliente ]
+```
+
+- O broker MQTT pode rodar na Casa 1, acessível via VPN pela Casa 2.
+- Alternativamente, ambos se conectam a um broker MQTT em nuvem com TLS.
+
+### Ferramentas e Serviços Úteis
+- **VPN:** WireGuard, Tailscale, OpenVPN, Zerotier
+- **MQTT Cloud:** HiveMQ Cloud, Mosquitto Cloud, EMQX Cloud, AWS IoT Core
+- **Firewall:** UFW, pfSense, OpenWRT
+
+---
+
+Essas práticas garantem segurança, privacidade e robustez para operar o Farmtron em ambientes distribuídos e remotos.
