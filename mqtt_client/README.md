@@ -35,12 +35,12 @@ Edit the `.env` file with your MQTT broker details.
 
 2. Start the dashboard:
 ```bash
-python hydroponics_dashboard.py
+streamlit run hydroponics_dashboard_streamlit.py
 ```
 
 3. Open your browser and navigate to:
 ```
-http://localhost:8050
+http://localhost:8501
 ```
 
 ## Dashboard Features

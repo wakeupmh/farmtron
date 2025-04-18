@@ -11,6 +11,7 @@ import json
 import logging
 import requests
 
+
 load_dotenv()
 
 # Persistent logging setup
@@ -31,10 +32,10 @@ MQTT_BROKER = os.getenv('MQTT_BROKER')
 MQTT_PORT = int(os.getenv('MQTT_PORT', 1883))
 MQTT_USER = os.getenv('MQTT_USER')
 MQTT_PASSWORD = os.getenv('MQTT_PASSWORD')
-MQTT_TOPIC_SENSOR = os.getenv('MQTT_TOPIC_SENSOR', 'farmtron/sensor')
-MQTT_TOPIC_STATUS = os.getenv('MQTT_TOPIC_STATUS', 'farmtron/status')
-MQTT_TOPIC_ALERT = os.getenv('MQTT_TOPIC_ALERT', 'farmtron/alert')
-MQTT_TOPIC_CONTROL = os.getenv('MQTT_TOPIC_CONTROL', 'farmtron/control')
+MQTT_TOPIC_SENSOR = os.getenv('MQTT_TOPIC_SENSOR', 'hydroponics/sensors')
+MQTT_TOPIC_STATUS = os.getenv('MQTT_TOPIC_STATUS', 'hydroponics/status')
+MQTT_TOPIC_ALERT = os.getenv('MQTT_TOPIC_ALERT', 'hydroponics/alerts')
+MQTT_TOPIC_CONTROL = os.getenv('MQTT_TOPIC_CONTROL', 'hydroponics/control')
 
 # Camera config (optional)
 CAMERA_URL = os.getenv('CAMERA_URL')
@@ -50,6 +51,13 @@ ALERT_FAILURE_THRESHOLD = int(os.getenv('ALERT_FAILURE_THRESHOLD', 3))
 sensor_queue = queue.Queue(maxsize=100)
 status_queue = queue.Queue(maxsize=10)
 alert_queue = queue.Queue(maxsize=10)
+
+# Publisher client for control messages
+publish_client = mqtt.Client()
+if MQTT_USER and MQTT_PASSWORD:
+    publish_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+publish_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+publish_client.loop_start()
 
 # MQTT callbacks (with logging)
 def on_connect(client, userdata, flags, rc):
@@ -114,31 +122,39 @@ def mqtt_thread():
 mqtt_bg = threading.Thread(target=mqtt_thread, daemon=True)
 mqtt_bg.start()
 
+@st.cache_data(ttl=1)
 def get_latest_sensor_data():
-    items = list(sensor_queue.queue)
-    if not items:
+    data = []
+    while True:
+        try:
+            raw = sensor_queue.get_nowait()
+            data.append(json.loads(raw))
+        except queue.Empty:
+            break
+    if not data:
         return pd.DataFrame()
-    try:
-        df = pd.DataFrame([json.loads(item) for item in items])
-    except Exception:
-        df = pd.DataFrame()
-    return df
+    return pd.DataFrame(data)
 
 def get_latest_status():
-    items = list(status_queue.queue)
-    return '\n'.join(items[-5:])
+    data = []
+    while True:
+        try:
+            data.append(status_queue.get_nowait())
+        except queue.Empty:
+            break
+    return '\n'.join(data[-5:])
 
 def get_latest_alerts():
-    items = list(alert_queue.queue)
-    return '\n'.join(items[-5:])
+    data = []
+    while True:
+        try:
+            data.append(alert_queue.get_nowait())
+        except queue.Empty:
+            break
+    return '\n'.join(data[-5:])
 
 def send_control_command(command):
-    client = mqtt.Client()
-    if MQTT_USER and MQTT_PASSWORD:
-        client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    client.publish(MQTT_TOPIC_CONTROL, command)
-    client.disconnect()
+    publish_client.publish(MQTT_TOPIC_CONTROL, command)
 
 # Streamlit UI
 st.set_page_config(page_title="Hydroponics Dashboard", layout="wide")
@@ -177,7 +193,14 @@ else:
 
 # --- Sensor Data Section ---
 st.subheader("Sensor Readings")
-sensor_df = get_latest_sensor_data()
+# Warn if queue is near capacity
+if sensor_queue.full():
+    st.warning("Sensor queue is full; data may be lost.")
+try:
+    sensor_df = get_latest_sensor_data()
+except Exception as e:
+    st.error(f"Error parsing sensor data: {e}")
+    sensor_df = pd.DataFrame()
 if not sensor_df.empty:
     st.line_chart(sensor_df)
 else:
